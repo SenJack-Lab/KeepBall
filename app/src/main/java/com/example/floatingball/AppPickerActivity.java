@@ -1,7 +1,6 @@
 package com.example.floatingball;
 
 import android.app.ListActivity;
-import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -13,15 +12,22 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Simple list of launchable apps; returns the chosen package name. */
+/**
+ * Multi-select list of launchable apps. Checking/unchecking writes straight
+ * into BallPrefs; back gesture/button exits when done.
+ */
 public class AppPickerActivity extends ListActivity {
+
+    private BallPrefs mPrefs;
+    private List<Entry> mEntries;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mPrefs = new BallPrefs(this);
 
         PackageManager pm = getPackageManager();
-        List<Entry> entries = new ArrayList<>();
+        mEntries = new ArrayList<>();
         for (PackageInfo pi : pm.getInstalledPackages(0)) {
             if (getPackageName().equals(pi.packageName)) continue;
             if (pm.getLaunchIntentForPackage(pi.packageName) == null) continue;
@@ -31,21 +37,27 @@ public class AppPickerActivity extends ListActivity {
             } catch (Exception e) {
                 label = pi.packageName;
             }
-            entries.add(new Entry(pi.packageName, label));
+            mEntries.add(new Entry(pi.packageName, label));
         }
-        Collections.sort(entries);
+        Collections.sort(mEntries);
 
         setListAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_list_item_1, entries));
+                android.R.layout.simple_list_item_multiple_choice, mEntries));
 
         ListView lv = getListView();
-        lv.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(android.widget.AdapterView<?> parent, View view,
-                                    int position, long id) {
-                Entry e = (Entry) parent.getItemAtPosition(position);
-                setResult(RESULT_OK, new Intent().putExtra("pkg", e.pkg));
-                finish();
+        lv.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
+        for (int i = 0; i < mEntries.size(); i++) {
+            if (mPrefs.residents().contains(mEntries.get(i).pkg)) {
+                lv.setItemChecked(i, true);
+            }
+        }
+
+        lv.setOnItemClickListener((parent, view, position, id) -> {
+            Entry e = mEntries.get(position);
+            if (((ListView) parent).isItemChecked(position)) {
+                mPrefs.addResident(e.pkg);
+            } else {
+                mPrefs.removeResident(e.pkg);
             }
         });
     }

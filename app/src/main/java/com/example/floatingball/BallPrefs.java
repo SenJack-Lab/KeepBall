@@ -4,8 +4,15 @@ import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/** Stores the resident (kept-alive) target package. */
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/** Stores the set of resident (kept-alive) target packages. */
 final class BallPrefs {
+
+    // Stored as a comma-joined string: SharedPreferences StringSet has the
+    // well-known pitfall that in-place mutations silently don't persist.
+    private static final String KEY = "pkgs";
 
     private final SharedPreferences mSp;
 
@@ -14,12 +21,32 @@ final class BallPrefs {
                 .getSharedPreferences("ball", Context.MODE_PRIVATE);
     }
 
-    void setResident(String pkg) {
-        mSp.edit().putString("pkg", pkg).apply();
+    Set<String> residents() {
+        Set<String> out = new LinkedHashSet<>();
+        String raw = mSp.getString(KEY, "");
+        if (raw == null || raw.isEmpty()) return out;
+        for (String p : raw.split(",")) {
+            if (!p.isEmpty()) out.add(p);
+        }
+        return out;
     }
 
-    String pkg() {
-        return mSp.getString("pkg", null);
+    void addResident(String pkg) {
+        Set<String> set = residents();
+        if (set.add(pkg)) persist(set);
+    }
+
+    void removeResident(String pkg) {
+        Set<String> set = residents();
+        if (set.remove(pkg)) persist(set);
+    }
+
+    boolean hasResidents() {
+        return !residents().isEmpty();
+    }
+
+    private void persist(Set<String> set) {
+        mSp.edit().putString(KEY, String.join(",", set)).apply();
     }
 
     /** Usage access lets the ball know whether the resident app is foreground. */

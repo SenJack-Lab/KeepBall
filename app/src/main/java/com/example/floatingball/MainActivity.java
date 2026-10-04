@@ -2,7 +2,6 @@ package com.example.floatingball;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -14,9 +13,10 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.Set;
+
 public class MainActivity extends Activity {
 
-    private static final int REQ_PICK = 1;
     private static final int REQ_NOTIF_PERM = 2;
 
     private TextView mStatus;
@@ -64,10 +64,10 @@ public class MainActivity extends Activity {
         mPermBattery.setOnClickListener(v -> requestBatteryExemption());
 
         findViewById(R.id.btn_pick).setOnClickListener(v ->
-                startActivityForResult(new Intent(this, AppPickerActivity.class), REQ_PICK));
+                startActivity(new Intent(this, AppPickerActivity.class)));
 
         findViewById(R.id.btn_minimize).setOnClickListener(v -> {
-            if (mPrefs.pkg() == null) {
+            if (!mPrefs.hasResidents()) {
                 Toast.makeText(this, R.string.toast_pick_first, Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -92,30 +92,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refreshStatus();
-        // Returning from system settings (overlay permission just granted):
-        // nudge the service so it retries drawing the ball.
-        if (mPrefs.pkg() != null) {
+        // Returning from system settings (overlay permission just granted)
+        // or from the picker (resident set changed): nudge the service so it
+        // redraws/repositions the balls.
+        if (mPrefs.hasResidents()) {
             startService(new Intent(this, FloatBallService.class));
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_PICK && resultCode == RESULT_OK && data != null) {
-            String pkg = data.getStringExtra("pkg");
-            mPrefs.setResident(pkg);
-            startService(new Intent(this, FloatBallService.class));
-
-            PackageManager pm = getPackageManager();
-            Intent launch = pm.getLaunchIntentForPackage(pkg);
-            if (launch != null) {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-                startActivity(launch);
-            }
-            refreshStatus();
         }
     }
 
@@ -166,23 +147,24 @@ public class MainActivity extends Activity {
         mPermNotif.setText(checkmark(notif) + getString(R.string.perm_notif));
         mPermBattery.setText(checkmark(battery) + getString(R.string.perm_battery));
 
-        String pkg = mPrefs.pkg();
-        String label = pkg;
-        if (pkg != null) {
-            PackageManager pm = getPackageManager();
-            try {
-                label = String.valueOf(pm.getApplicationLabel(
-                        pm.getApplicationInfo(pkg, 0))) + " (" + pkg + ")";
-            } catch (Exception ignored) {
-            }
-        }
+        Set<String> residents = mPrefs.residents();
         String text;
         if (!overlay) {
             text = getString(R.string.status_need_overlay);
-        } else if (pkg == null) {
+        } else if (residents.isEmpty()) {
             text = getString(R.string.status_running_empty);
         } else {
-            text = getString(R.string.status_running, label);
+            StringBuilder names = new StringBuilder();
+            PackageManager pm = getPackageManager();
+            for (String pkg : residents) {
+                if (names.length() > 0) names.append("、");
+                try {
+                    names.append(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)));
+                } catch (Exception e) {
+                    names.append(pkg);
+                }
+            }
+            text = getString(R.string.status_running_multi, residents.size(), names.toString());
         }
         mStatus.setText(text);
     }

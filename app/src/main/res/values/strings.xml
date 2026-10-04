@@ -4,7 +4,7 @@
     <string name="notif_title">KeepBall 运行中</string>
     <string name="notif_text">点小圆点收起或还原驻留应用</string>
     <string name="notif_action_minimize">收起</string>
-    <string name="btn_pick">选择要驻留的应用</string>
+    <string name="btn_pick">选择要驻留的应用（可多选，每应用一颗球）</string>
     <string name="perm_overlay">悬浮窗权限（显示小圆点）</string>
     <string name="perm_usage">使用情况访问（判断前台/后台，点球收起或还原）</string>
     <string name="perm_notif">通知权限（保持服务常驻）</string>
@@ -15,6 +15,7 @@
     <string name="status_need_overlay">需要悬浮窗权限</string>
     <string name="status_running_empty">运行中 · 尚未驻留应用</string>
     <string name="status_running">运行中 · 驻留应用：%1$s</string>
+    <string name="status_running_multi">运行中 · 驻留 %1$d 个应用：%2$s</string>
     <string name="status_stopped">已停止</string>
     <string name="toast_minimized">已收起，点屏幕边缘的小圆点还原</string>
     <string name="pick_title">选择应用</string>
@@ -23,5 +24,5 @@
     <string name="toast_home_failed">无法回到桌面</string>
     <string name="toast_restore_failed">还原失败，请从桌面重新打开应用</string>
     <string name="toast_battery_unsupported">此系统不支持跳过电池优化</string>
-    <string name="hint_usage">用法：逐项点 ✗ 行完成授权（✓ 即已获取）→ 选应用（自动打开）→ 使用中点小圆点收起到桌面；在桌面点小圆点立即还原，无需回本页。通知栏也有「收起/停止」。未授「使用情况访问」时，点球仅做还原。\n注意：收起后目标应用在后台，Android 12+ 可能冻结它；要彻底不冻结需 Shizuku/小窗方案（v2）。</string>
+    <string name="hint_usage">用法：逐项点 ✗ 行完成授权（✓ 即已获取）→ 多选要驻留的应用（每个应用在屏幕右缘一颗图标球）→ 使用某个应用时点它的球收起到桌面；在桌面点某颗球直接还原那个应用，无需回本页。球可拖动。通知栏也有「收起/停止」。未授「使用情况访问」时，点球仅做还原。</string>
 </resources>

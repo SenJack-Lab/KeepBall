@@ -10,27 +10,36 @@ import android.app.usage.UsageStatsManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.Toast;
 
-/** Foreground service that owns the floating ball overlay. */
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+/** Foreground service that owns one floating ball per resident app. */
 public class FloatBallService extends Service {
 
     private static final String CHANNEL_ID = "keepball";
     private static final int NOTIF_ID = 1;
-    private static final int BALL_SIZE_PX = 132; // ~44dp @3x, adjusted on attach
+    private static final int BALL_DP = 40;
+    private static final int GAP_DP = 8;
 
     private WindowManager mWm;
-    private View mBall;
-    private float mTouchSlop;
+    private PackageManager mPm;
     private UsageStatsManager mUsage;
+    private float mTouchSlop;
+    private int mBallSize, mBallGap;
+
+    /** package name -> attached ball view; insertion order = slot order. */
+    private final Map<String, View> mBalls = new LinkedHashMap<>();
+    private final Map<String, WindowManager.LayoutParams> mLps = new LinkedHashMap<>();
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -41,10 +50,14 @@ public class FloatBallService extends Service {
     public void onCreate() {
         super.onCreate();
         mWm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        mPm = getPackageManager();
         mUsage = getSystemService(UsageStatsManager.class);
         mTouchSlop = android.view.ViewConfiguration.get(this).getScaledTouchSlop();
+        float density = getResources().getDisplayMetrics().density;
+        mBallSize = Math.round(BALL_DP * density);
+        mBallGap = Math.round(GAP_DP * density);
         startForeground(NOTIF_ID, buildNotification());
-        showBall();
+        reconcileBalls();
     }
 
     @Override
@@ -57,73 +70,115 @@ public class FloatBallService extends Service {
         if ("minimize".equals(action)) {
             goHome();
         }
-        // Permission may have been granted AFTER onCreate (v1.1 checklist
-        // flow), so re-attempt on every start; showBall() is idempotent.
-        showBall();
+        // Permissions or the resident set may have changed since onCreate;
+        // reconcile is idempotent, so retry on every start.
+        reconcileBalls();
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        removeBall();
+        for (View v : new LinkedHashMap<>(mBalls).values()) removeBallView(v);
+        mBalls.clear();
+        mLps.clear();
         super.onDestroy();
     }
 
-    private void showBall() {
-        if (mBall != null
-                || !Settings.canDrawOverlays(this)) {
-            return;
+    /** Make the on-screen balls match the resident set and slot order. */
+    private void reconcileBalls() {
+        if (!Settings.canDrawOverlays(this)) return;
+
+        Set<String> residents = new BallPrefs(this).residents();
+
+        // remove balls whose app was unchecked
+        for (String pkg : new LinkedHashMap<>(mBalls).keySet()) {
+            if (!residents.contains(pkg)) {
+                removeBallView(mBalls.remove(pkg));
+                mLps.remove(pkg);
+            }
         }
-        float density = getResources().getDisplayMetrics().density;
-        int size = Math.round(44 * density);
+
+        // add balls for new residents, then reposition every ball to its slot
+        int slot = 0;
+        for (String pkg : residents) {
+            View ball = mBalls.get(pkg);
+            if (ball == null) {
+                ball = createBall(pkg);
+                if (ball == null) continue; // package vanished
+                mBalls.put(pkg, ball);
+            }
+            WindowManager.LayoutParams lp = mLps.get(pkg);
+            lp.y = slot * (mBallSize + mBallGap);
+            try {
+                mWm.updateViewLayout(ball, lp);
+            } catch (IllegalArgumentException ignored) {
+            }
+            slot++;
+        }
+
+        if (mBalls.isEmpty()) {
+            // nothing to guard: keep the service (notification) but no balls
+        }
+    }
+
+    private View createBall(String pkg) {
+        android.graphics.drawable.Drawable icon;
+        try {
+            icon = mPm.getApplicationIcon(pkg);
+        } catch (PackageManager.NameNotFoundException e) {
+            return null;
+        }
+
+        ImageView ball = new ImageView(this);
+        ball.setImageDrawable(icon);
+        ball.setPadding(mBallSize / 6, mBallSize / 6, mBallSize / 6, mBallSize / 6);
+        ball.setBackgroundResource(R.drawable.ic_launcher);
+        ball.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                size,
-                size,
+                mBallSize,
+                mBallSize,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT);
-        lp.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+        lp.gravity = Gravity.END | Gravity.TOP;
         lp.x = 0;
         lp.y = 0;
 
-        View ball = new View(this);
-        ball.setBackgroundResource(R.drawable.ic_launcher);
-        ball.setOnTouchListener(new BallTouchHandler(lp));
-
-        mWm.addView(ball, lp);
-        mBall = ball;
+        ball.setOnTouchListener(new BallTouchHandler(pkg, lp));
+        try {
+            mWm.addView(ball, lp);
+        } catch (Exception e) {
+            return null;
+        }
+        mLps.put(pkg, lp);
+        return ball;
     }
 
-    private void removeBall() {
-        if (mBall != null) {
+    private void removeBallView(View ball) {
+        if (ball != null) {
             try {
-                mWm.removeView(mBall);
+                mWm.removeView(ball);
             } catch (IllegalArgumentException ignored) {
                 // view already detached
             }
-            mBall = null;
         }
     }
 
     /**
-     * Tap on the ball: if the resident app is in the foreground, minimize it
-     * to the home screen; otherwise restore it. Without usage access this
-     * always restores (v1.0 behavior).
+     * Tap on a ball: if that app is in the foreground, minimize it to the
+     * home screen; otherwise restore it. Without usage access this always
+     * restores (v1.0 behavior).
      */
-    private void restoreResident() {
-        String pkg = new BallPrefs(this).pkg();
-        if (pkg == null) return;
-
+    private void onBallTapped(String pkg) {
         if (BallPrefs.hasUsageAccess(this) && isResidentForeground(pkg)) {
             goHome();
             return;
         }
 
-        PackageManager pm = getPackageManager();
-        Intent launch = pm.getLaunchIntentForPackage(pkg);
+        Intent launch = mPm.getLaunchIntentForPackage(pkg);
         if (launch == null) return;
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
 
@@ -136,7 +191,7 @@ public class FloatBallService extends Service {
         startActivity(via);
     }
 
-    /** True if the resident package owned the last activity-resumed event. */
+    /** True if the package owned the last activity-resumed event. */
     private boolean isResidentForeground(String pkg) {
         long now = System.currentTimeMillis();
         UsageEvents events;
@@ -198,14 +253,16 @@ public class FloatBallService extends Service {
                 .build();
     }
 
-    /** Drag (with touch-slop) + tap detection on the ball. */
+    /** Drag (with touch-slop) + tap detection, bound to one ball/package. */
     private final class BallTouchHandler implements View.OnTouchListener {
+        private final String mPkg;
         private final WindowManager.LayoutParams mLp;
         private float mDownRawX, mDownRawY;
         private float mStartX, mStartY;
         private boolean mDragging;
 
-        BallTouchHandler(WindowManager.LayoutParams lp) {
+        BallTouchHandler(String pkg, WindowManager.LayoutParams lp) {
+            mPkg = pkg;
             mLp = lp;
         }
 
@@ -222,23 +279,21 @@ public class FloatBallService extends Service {
                 case MotionEvent.ACTION_MOVE:
                     float dx = event.getRawX() - mDownRawX;
                     float dy = event.getRawY() - mDownRawY;
-                    if (!mDragging
-                            && Math.hypot(dx, dy) > mTouchSlop) {
+                    if (!mDragging && Math.hypot(dx, dy) > mTouchSlop) {
                         mDragging = true;
                     }
                     if (mDragging) {
-                        // gravity END: x grows leftwards from the right edge
                         mLp.x = (int) (mStartX - dx);
                         mLp.y = (int) (mStartY + dy);
                         try {
-                            mWm.updateViewLayout(mBall, mLp);
+                            mWm.updateViewLayout(v, mLp);
                         } catch (IllegalArgumentException ignored) {
                         }
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
                     if (!mDragging) {
-                        restoreResident();
+                        onBallTapped(mPkg);
                     }
                     mDragging = false;
                     return true;
