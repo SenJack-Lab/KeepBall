@@ -5,6 +5,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.app.usage.UsageEvents;
+import android.app.usage.UsageStatsManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
@@ -16,6 +18,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 /** Foreground service that owns the floating ball overlay. */
 public class FloatBallService extends Service {
@@ -27,6 +30,7 @@ public class FloatBallService extends Service {
     private WindowManager mWm;
     private View mBall;
     private float mTouchSlop;
+    private UsageStatsManager mUsage;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -37,6 +41,7 @@ public class FloatBallService extends Service {
     public void onCreate() {
         super.onCreate();
         mWm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        mUsage = getSystemService(UsageStatsManager.class);
         mTouchSlop = android.view.ViewConfiguration.get(this).getScaledTouchSlop();
         startForeground(NOTIF_ID, buildNotification());
         showBall();
@@ -48,6 +53,9 @@ public class FloatBallService extends Service {
         if ("stop".equals(action)) {
             stopSelf();
             return START_NOT_STICKY;
+        }
+        if ("minimize".equals(action)) {
+            goHome();
         }
         return START_STICKY;
     }
@@ -97,10 +105,19 @@ public class FloatBallService extends Service {
         }
     }
 
-    /** Tap on the ball: bring the resident app back to the front. */
+    /**
+     * Tap on the ball: if the resident app is in the foreground, minimize it
+     * to the home screen; otherwise restore it. Without usage access this
+     * always restores (v1.0 behavior).
+     */
     private void restoreResident() {
         String pkg = new BallPrefs(this).pkg();
         if (pkg == null) return;
+
+        if (BallPrefs.hasUsageAccess(this) && isResidentForeground(pkg)) {
+            goHome();
+            return;
+        }
 
         PackageManager pm = getPackageManager();
         Intent launch = pm.getLaunchIntentForPackage(pkg);
@@ -116,6 +133,37 @@ public class FloatBallService extends Service {
         startActivity(via);
     }
 
+    /** True if the resident package owned the last activity-resumed event. */
+    private boolean isResidentForeground(String pkg) {
+        long now = System.currentTimeMillis();
+        UsageEvents events;
+        try {
+            events = mUsage.queryEvents(now - 30_000L, now);
+        } catch (Exception e) {
+            return false;
+        }
+        String last = null;
+        UsageEvents.Event ev = new UsageEvents.Event();
+        while (events.hasNextEvent()) {
+            events.getNextEvent(ev);
+            if (ev.getEventType() == UsageEvents.Event.ACTIVITY_RESUMED) {
+                last = ev.getPackageName();
+            }
+        }
+        return pkg.equals(last);
+    }
+
+    private void goHome() {
+        Intent home = new Intent(Intent.ACTION_MAIN);
+        home.addCategory(Intent.CATEGORY_HOME);
+        home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(home);
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.toast_home_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private Notification buildNotification() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         NotificationChannel ch = new NotificationChannel(CHANNEL_ID,
@@ -127,6 +175,11 @@ public class FloatBallService extends Service {
         PendingIntent stopPi = PendingIntent.getService(this, 2, stop,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
+        Intent minimize = new Intent(this, FloatBallService.class);
+        minimize.setAction("minimize");
+        PendingIntent minPi = PendingIntent.getService(this, 3, minimize,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_ball)
                 .setContentTitle(getString(R.string.notif_title))
@@ -134,6 +187,8 @@ public class FloatBallService extends Service {
                 .setContentIntent(PendingIntent.getActivity(this, 0,
                         new Intent(this, MainActivity.class),
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
+                .addAction(new Notification.Action.Builder(
+                        null, getString(R.string.notif_action_minimize), minPi).build())
                 .addAction(new Notification.Action.Builder(
                         null, getString(R.string.notif_action_stop), stopPi).build())
                 .setOngoing(true)

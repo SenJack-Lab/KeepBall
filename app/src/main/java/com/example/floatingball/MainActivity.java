@@ -2,6 +2,7 @@ package com.example.floatingball;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -19,6 +20,7 @@ public class MainActivity extends Activity {
     private static final int REQ_NOTIF_PERM = 2;
 
     private TextView mStatus;
+    private TextView mPermOverlay, mPermUsage, mPermNotif, mPermBattery;
     private BallPrefs mPrefs;
 
     @Override
@@ -28,22 +30,43 @@ public class MainActivity extends Activity {
         mPrefs = new BallPrefs(this);
 
         mStatus = findViewById(R.id.status);
-        Button btnOverlay = findViewById(R.id.btn_overlay);
-        Button btnPick = findViewById(R.id.btn_pick);
-        Button btnBattery = findViewById(R.id.btn_battery);
-        Button btnMinimize = findViewById(R.id.btn_minimize);
-        Button btnStop = findViewById(R.id.btn_stop);
+        mPermOverlay = findViewById(R.id.perm_overlay);
+        mPermUsage = findViewById(R.id.perm_usage);
+        mPermNotif = findViewById(R.id.perm_notif);
+        mPermBattery = findViewById(R.id.perm_battery);
 
-        btnOverlay.setOnClickListener(v ->
+        mPermOverlay.setOnClickListener(v -> {
+            try {
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName()))));
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) {
+                toastSettingsUnavailable();
+            }
+        });
 
-        btnPick.setOnClickListener(v ->
+        mPermUsage.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+            } catch (Exception e) {
+                toastSettingsUnavailable();
+            }
+        });
+
+        mPermNotif.setOnClickListener(v -> {
+            if (Build.VERSION.SDK_INT >= 33
+                    && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQ_NOTIF_PERM);
+            }
+        });
+
+        mPermBattery.setOnClickListener(v -> requestBatteryExemption());
+
+        findViewById(R.id.btn_pick).setOnClickListener(v ->
                 startActivityForResult(new Intent(this, AppPickerActivity.class), REQ_PICK));
 
-        btnBattery.setOnClickListener(v -> requestBatteryExemption());
-
-        btnMinimize.setOnClickListener(v -> {
+        findViewById(R.id.btn_minimize).setOnClickListener(v -> {
             if (mPrefs.pkg() == null) {
                 Toast.makeText(this, R.string.toast_pick_first, Toast.LENGTH_SHORT).show();
                 return;
@@ -52,7 +75,7 @@ public class MainActivity extends Activity {
             minimizeToBall();
         });
 
-        btnStop.setOnClickListener(v -> {
+        findViewById(R.id.btn_stop).setOnClickListener(v -> {
             stopService(new Intent(this, FloatBallService.class));
             refreshStatus();
         });
@@ -71,6 +94,7 @@ public class MainActivity extends Activity {
         refreshStatus();
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -115,7 +139,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String checkmark(boolean granted) {
+        return granted ? "✓ " : "✗ ";
+    }
+
+    private void toastSettingsUnavailable() {
+        Toast.makeText(this, R.string.toast_settings_unavailable, Toast.LENGTH_SHORT).show();
+    }
+
     private void refreshStatus() {
+        boolean overlay = Settings.canDrawOverlays(this);
+        boolean usage = BallPrefs.hasUsageAccess(this);
+        boolean notif = Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean battery = getSystemService(PowerManager.class)
+                .isIgnoringBatteryOptimizations(getPackageName());
+
+        mPermOverlay.setText(checkmark(overlay) + getString(R.string.perm_overlay));
+        mPermUsage.setText(checkmark(usage) + getString(R.string.perm_usage));
+        mPermNotif.setText(checkmark(notif) + getString(R.string.perm_notif));
+        mPermBattery.setText(checkmark(battery) + getString(R.string.perm_battery));
+
         String pkg = mPrefs.pkg();
         String label = pkg;
         if (pkg != null) {
@@ -126,9 +171,8 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {
             }
         }
-        boolean running = Settings.canDrawOverlays(this);
         String text;
-        if (!running) {
+        if (!overlay) {
             text = getString(R.string.status_need_overlay);
         } else if (pkg == null) {
             text = getString(R.string.status_running_empty);
