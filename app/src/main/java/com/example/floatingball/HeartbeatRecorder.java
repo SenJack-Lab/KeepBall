@@ -81,7 +81,6 @@ final class HeartbeatRecorder {
     private static String eventName(int t) {
         if (t == UsageEvents.Event.ACTIVITY_RESUMED) return "RESUMED";
         if (t == UsageEvents.Event.ACTIVITY_PAUSED) return "PAUSED";
-        if (t == UsageEvents.Event.APP_STANDBY_BUCKET_CHANGED) return "BUCKET";
         return "e" + t;
     }
 }

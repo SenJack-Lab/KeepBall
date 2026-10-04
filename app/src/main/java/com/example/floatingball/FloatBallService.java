@@ -362,14 +362,15 @@ public class FloatBallService extends Service {
         private float mStartX, mStartY;
         private boolean mDragging;
         private boolean mLongFired;
-        private final Runnable mLongPress = () -> {
-            mLongFired = true;
-            onBallLongPressed(mPkg);
-        };
+        private final Runnable mLongPress;
 
         BallTouchHandler(String pkg, WindowManager.LayoutParams lp) {
             mPkg = pkg;
             mLp = lp;
+            mLongPress = () -> {
+                mLongFired = true;
+                onBallLongPressed(mPkg);
+            };
         }
 
         @Override
