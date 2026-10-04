@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KeepBall</string>
+    <string name="notif_title">KeepBall 运行中</string>
+    <string name="notif_text">点按小圆点还原驻留的应用</string>
+    <string name="notif_action_minimize">收起</string>
+    <string name="btn_grant">1. 授予悬浮窗权限</string>
+    <string name="btn_pick">2. 选择要驻留的应用</string>
+    <string name="btn_minimize">收起驻留应用（回到桌面并显示小圆点）</string>
+    <string name="btn_stop">停止服务</string>
+    <string name="status_need_overlay">需要悬浮窗权限</string>
+    <string name="status_running_empty">运行中 · 尚未驻留应用</string>
+    <string name="status_running">运行中 · 驻留应用：%1$s</string>
+    <string name="status_stopped">已停止</string>
+    <string name="toast_minimized">已收起，点屏幕边缘的小圆点还原</string>
+    <string name="pick_title">选择应用</string>
+    <string name="btn_battery">3. 申请电池白名单（降低被杀/冻结概率）</string>
+    <string name="notif_action_stop">停止</string>
+    <string name="toast_pick_first">请先选择要驻留的应用</string>
+    <string name="toast_home_failed">无法回到桌面</string>
+    <string name="toast_restore_failed">还原失败，请从桌面重新打开应用</string>
+    <string name="toast_battery_unsupported">此系统不支持跳过电池优化</string>
+    <string name="hint_usage">用法：1 授悬浮窗 → 2 选应用（自动打开）→ 正常使用 → 下拉通知点「收起」→ 桌面出现小圆点 → 点小圆点还原。\n注意：收起后目标应用在后台，Android 12+ 系统可能冻结它；点 3 可为其申请电池白名单进一步降低概率。要彻底不冻结需 Shizuku/小窗方案（v2）。</string>
+</resources>
