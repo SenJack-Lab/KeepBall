@@ -9,5 +9,6 @@ local.properties
 .DS_Store
 
 # Signing
+signing/
 *.jks
 *.keystore

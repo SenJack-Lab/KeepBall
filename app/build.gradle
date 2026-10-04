@@ -14,9 +14,41 @@ android {
         versionName "0.1"
     }
 
+    signingConfigs {
+        unified {
+            // CI fills these from secrets/saved keystore; local builds without
+            // them simply skip unified signing and fall back to defaults.
+            if (project.hasProperty('KEYSTORE_BASE64')
+                    && project.hasProperty('KEYSTORE_PASSWORD')
+                    && project.hasProperty('KEY_ALIAS')
+                    && project.hasProperty('KEY_PASSWORD')) {
+                def ksFile = rootProject.file('signing/unified.jks')
+                if (!ksFile.exists()) {
+                    new File(rootProject.projectDir, 'signing').mkdirs()
+                    ksFile.withOutputStream {
+                        it << Base64.getDecoder().decode(
+                                project.property('KEYSTORE_BASE64').toString())
+                    }
+                }
+                storeFile ksFile
+                storePassword project.property('KEYSTORE_PASSWORD').toString()
+                keyAlias project.property('KEY_ALIAS').toString()
+                keyPassword project.property('KEY_PASSWORD').toString()
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (signingConfigs.unified.storeFile != null) {
+                signingConfig signingConfigs.unified
+            }
+        }
         release {
             minifyEnabled false
+            if (signingConfigs.unified.storeFile != null) {
+                signingConfig signingConfigs.unified
+            }
         }
     }
 

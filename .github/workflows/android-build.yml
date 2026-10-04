@@ -21,11 +21,50 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Restore unified signing keystore from cache
+        id: ks
+        uses: actions/cache@v4
+        with:
+          path: signing/unified.jks
+          key: unified-signing-keystore-v1
+
+      - name: Generate unified signing keystore (first run only)
+        if: steps.ks.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p signing
+          keytool -genkeypair -v \
+            -alias "${KEY_ALIAS}" \
+            -keyalg RSA -keysize 4096 -validity 10950 \
+            -keystore signing/unified.jks \
+            -storepass "${KEYSTORE_PASSWORD}" \
+            -keypass "${KEY_PASSWORD}" \
+            -dname "CN=SenJack-Lab Unified, OU=CI, O=SenJack-Lab, C=CN" \
+            -storetype JKS
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Verify keystore
+        run: keytool -list -keystore signing/unified.jks -storepass "${KEYSTORE_PASSWORD}" | head -5
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+
+      - name: Build debug APK (unified-signed)
+        run: |
+          KS_B64=$(base64 -w0 signing/unified.jks)
+          gradle assembleDebug --no-daemon \
+            -PKEYSTORE_BASE64="$KS_B64" \
+            -PKEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -PKEY_ALIAS="${{ secrets.KEY_ALIAS }}" \
+            -PKEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: keepball-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Save keystore fingerprint for traceability
+        run: |
+          keytool -list -printcert -jarfile app/build/outputs/apk/debug/*.apk 2>/dev/null | grep -E "SHA256:" | head -1 || true
