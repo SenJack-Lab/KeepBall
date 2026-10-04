@@ -46,11 +46,14 @@ jobs:
                  -storepass "${{ secrets.KEYSTORE_PASSWORD }}" | grep -m1 'SHA256:'
 
       - name: Build debug APK (unified-signed)
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          KEY_ALIAS_TRIM="$(printf '%s' "$KEY_ALIAS" | tr -d '[:space:]')"
           gradle assembleDebug --no-daemon \
             -PKEYSTORE_BASE64="${{ secrets.KEYSTORE_BASE64 }}" \
             -PKEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -PKEY_ALIAS="${{ secrets.KEY_ALIAS }}" \
+            -PKEY_ALIAS="$KEY_ALIAS_TRIM" \
             -PKEY_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}"
 
       - name: Upload APK artifact
