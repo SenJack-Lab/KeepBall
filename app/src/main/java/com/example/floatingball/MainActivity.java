@@ -133,12 +133,22 @@ public class MainActivity extends Activity {
             Toast.makeText(this, R.string.toast_no_log, Toast.LENGTH_SHORT).show();
             return;
         }
-        android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                this, getPackageName() + ".fileprovider", f);
+        String csv;
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+            csv = bos.toString("UTF-8");
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.toast_no_log, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (csv.length() > 900_000) csv = csv.substring(csv.length() - 900_000);
         Intent send = new Intent(Intent.ACTION_SEND);
-        send.setType("text/csv");
-        send.putExtra(Intent.EXTRA_STREAM, uri);
-        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "keepball-heartbeat.csv");
+        send.putExtra(Intent.EXTRA_TEXT, csv);
         try {
             startActivity(Intent.createChooser(send, getString(R.string.btn_export)));
         } catch (Exception e) {
