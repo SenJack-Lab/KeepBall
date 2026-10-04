@@ -45,6 +45,25 @@ final class BallPrefs {
         return !residents().isEmpty();
     }
 
+    /** Optional per-app local TCP probe port (null = no probing). */
+    Integer probePort(String pkg) {
+        String raw = mSp.getString("probe_" + pkg, null);
+        if (raw == null || raw.isEmpty()) return null;
+        try {
+            return Integer.valueOf(raw);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    void setProbePort(String pkg, Integer port) {
+        if (port == null) {
+            mSp.edit().remove("probe_" + pkg).apply();
+        } else {
+            mSp.edit().putString("probe_" + pkg, String.valueOf(port)).apply();
+        }
+    }
+
     private void persist(Set<String> set) {
         mSp.edit().putString(KEY, String.join(",", set)).apply();
     }

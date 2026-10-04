@@ -10,6 +10,12 @@
     <string name="perm_notif">通知权限（保持服务常驻）</string>
     <string name="perm_battery">电池优化豁免（降低被杀概率）</string>
     <string name="toast_settings_unavailable">无法打开对应设置页</string>
+    <string name="probe_title">应用探针：%1$s</string>
+    <string name="probe_hint">为本应用的悬浮球配置本机 TCP 探测端口（如 8080）。设置后 KeepBall 每分钟直连一次 127.0.0.1:端口：连得上→球心绿色播放；连不上→红色暂停；不填则球心为黄色，仅按前台/后台推断。留空保存即关闭探测。</string>
+    <string name="probe_save">保存</string>
+    <string name="toast_bad_port">端口需为 1–65535 的数字</string>
+    <string name="btn_export">导出心跳日志</string>
+    <string name="toast_no_log">还没有心跳日志，等一分钟再看</string>
     <string name="btn_minimize">收起驻留应用（回桌面，小圆点保留）</string>
     <string name="btn_stop">停止服务</string>
     <string name="status_need_overlay">需要悬浮窗权限</string>

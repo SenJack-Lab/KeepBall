@@ -75,6 +75,8 @@ public class MainActivity extends Activity {
             minimizeToBall();
         });
 
+        findViewById(R.id.btn_export).setOnClickListener(v -> exportHeartbeat());
+
         findViewById(R.id.btn_stop).setOnClickListener(v -> {
             stopService(new Intent(this, FloatBallService.class));
             refreshStatus();
@@ -122,6 +124,25 @@ public class MainActivity extends Activity {
             startActivity(i);
         } else {
             Toast.makeText(this, R.string.toast_battery_unsupported, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void exportHeartbeat() {
+        java.io.File f = new HeartbeatRecorder(this).file();
+        if (!f.exists() || f.length() == 0) {
+            Toast.makeText(this, R.string.toast_no_log, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                this, getPackageName() + ".fileprovider", f);
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/csv");
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivity(Intent.createChooser(send, getString(R.string.btn_export)));
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.toast_settings_unavailable, Toast.LENGTH_SHORT).show();
         }
     }
 
