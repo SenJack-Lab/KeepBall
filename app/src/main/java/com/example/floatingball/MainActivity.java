@@ -92,6 +92,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refreshStatus();
+        // Returning from system settings (overlay permission just granted):
+        // nudge the service so it retries drawing the ball.
+        if (mPrefs.pkg() != null) {
+            startService(new Intent(this, FloatBallService.class));
+        }
     }
 
     @SuppressWarnings("deprecation")

@@ -57,6 +57,9 @@ public class FloatBallService extends Service {
         if ("minimize".equals(action)) {
             goHome();
         }
+        // Permission may have been granted AFTER onCreate (v1.1 checklist
+        // flow), so re-attempt on every start; showBall() is idempotent.
+        showBall();
         return START_STICKY;
     }
 
