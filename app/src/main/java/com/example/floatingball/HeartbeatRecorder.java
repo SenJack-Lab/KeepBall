@@ -3,7 +3,6 @@ package com.example.floatingball;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
-import android.os.Build;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -59,18 +58,9 @@ final class HeartbeatRecorder {
             } catch (Exception ignored) {
             }
 
-            String bucket = "n/a";
-            if (Build.VERSION.SDK_INT >= 28) {
-                try {
-                    bucket = String.valueOf(usm.getAppStandbyBucket(pkg));
-                } catch (Exception ignored) {
-                }
-            }
-
             String probe = probeResults.get(pkg);
             rows.append(mFmt.format(new Date(now))).append(',')
                     .append(pkg).append(',')
-                    .append(bucket).append(',')
                     .append(fg ? "fg" : "bg").append(',')
                     .append(lastEvent).append(',')
                     .append(probe == null ? "off" : probe)
@@ -81,7 +71,7 @@ final class HeartbeatRecorder {
         if (rows.length() == 0) return;
         try (FileWriter w = new FileWriter(mFile, true)) {
             if (mFile.length() == 0) {
-                w.append("time,pkg,bucket,fg,last_event,probe\n");
+                w.append("time,pkg,fg,last_event,probe\n");
             }
             w.append(rows);
         } catch (IOException ignored) {
@@ -91,10 +81,6 @@ final class HeartbeatRecorder {
     private static String eventName(int t) {
         if (t == UsageEvents.Event.ACTIVITY_RESUMED) return "RESUMED";
         if (t == UsageEvents.Event.ACTIVITY_PAUSED) return "PAUSED";
-        if (t == UsageEvents.Event.ACTIVITY_STOPPED) return "STOPPED";
-        if (t == UsageEvents.Event.ACTIVITY_DESTROYED) return "DESTROYED";
-        if (t == UsageEvents.Event.FOREGROUND_SERVICE_START) return "FGS_START";
-        if (t == UsageEvents.Event.FOREGROUND_SERVICE_STOP) return "FGS_STOP";
         if (t == UsageEvents.Event.APP_STANDBY_BUCKET_CHANGED) return "BUCKET";
         return "e" + t;
     }

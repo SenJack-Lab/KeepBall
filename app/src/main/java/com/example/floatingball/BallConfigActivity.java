@@ -37,14 +37,15 @@ public class BallConfigActivity extends Activity {
         final EditText input = new EditText(this);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
         input.setHint("8080");
+        int pad = Math.round(24 * getResources().getDisplayMetrics().density);
+        input.setPadding(pad, input.getPaddingTop(), pad, input.getPaddingBottom());
         Integer current = prefs.probePort(pkg);
         if (current != null) input.setText(String.valueOf(current));
 
-        float d = getResources().getDisplayMetrics().density;
         new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.probe_title, label))
                 .setMessage(R.string.probe_hint)
-                .setView(input, (int) (24 * d), 0, (int) (24 * d), 0)
+                .setView(input)
                 .setPositiveButton(R.string.probe_save, (d1, w) -> {
                     String t = input.getText().toString().trim();
                     try {
